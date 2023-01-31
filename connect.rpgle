@@ -11,12 +11,13 @@ dcl-s WebServiceUrl    varchar(2048) inz;
 dcl-s WebServiceHeader varchar(2048) inz;
 dcl-s WebServiceBody   varchar(2048) inz;
 dcl-s Token            varchar(2048) inz;
-dcl-s Text             varchar(2048)  inz;
+dcl-s Text             varchar(2048) inz;
+dcl-s FiscalId         varchar(2048) inz;
 
 // - - - - - - -
 
 dcl-ds jsonData   qualified;
-  fiscalId   varchar(35);
+  connectUrl   varchar(2048);
 end-ds;
 
 // ========================================================================*
@@ -24,10 +25,6 @@ end-ds;
 // ------------------------------------------------------------------------*
 dcl-pr getenv pointer extproc('getenv');
   *n pointer value options(*string:*trim);
-end-pr;
-
-dcl-pr putenv int(10) extproc('putenv');
-  *n pointer value options(*string:*trim) ;
 end-pr;
 
 dcl-pr writeJobLog int(10) extproc('Qp0zLprintf');
@@ -46,10 +43,8 @@ end-pr;
 
 dcl-c JOBLOGCRLF const(x'0d25');
 // Example:
-//     writeJobLog ( WebServiceHeader + '%s' : joblogCRLF );
+//     writeJobLog ( WebServiceHeader + '%s' : JOBLOGCRLF );
 // ========================================================================*
-
-// --------------------------------------------------------
 
 Exsr SetUp;
 Exsr ConsumeWs;
@@ -62,8 +57,9 @@ Return;
 // --------------------------------------------------------
 
 Begsr SetUp;
+  FiscalId = %str(getenv('ACUBE_FISCALID'));
   WebServiceUrl = 'https://ob-sandbox.api.acubeapi.com/' +
-                   'business-registry';
+                   'business-registry/' + FiscalId + '/connect';
 
   Token = %str(getenv('ACUBE_TOKEN'));
 
@@ -73,32 +69,22 @@ Begsr SetUp;
                       '  <header name="content-type" value="application/json" /> ' +                                              
                       '</httpHeader>';
 
-  Exec SQL
-    Declare File Cursor For
-        SELECT CAST(LINE AS CHAR(2048))
-        From Table(IFS_READ('src/br.json', 2048, 'NONE' )) As IFS;
-
-  Exec SQL Close File;
-  Exec SQL Open File;
-
-  Exec SQL Fetch Next From File Into :WebServiceBody;
-
-  Exec SQL Close File; 
+  WebServiceBody = '{"locale": "it"}';
 Endsr;
 
 // --------------------------------------------------------
 // ConsumeWs  subroutine
 // --------------------------------------------------------
 
-BegSr ConsumeWs;
+Begsr ConsumeWs;
 
   Exec sql
-   Declare CsrC01 Cursor For
+    Declare CsrC01 Cursor For
      Select * from
        Json_Table(Systools.HttpPostClob(:WebServiceUrl, :WebServiceHeader,
                                         :WebServiceBody),
        '$'
-       Columns(Token VarChar(2048)  Path '$.fiscalId')) As x;
+       Columns(Token VarChar(2048)  Path '$.connectUrl')) As x;
 
   Exec Sql Close CsrC01;
   Exec Sql Open  CsrC01;
@@ -113,6 +99,7 @@ BegSr ConsumeWs;
         Exec Sql
                    Get Diagnostics Condition 1
                    :Text = MESSAGE_TEXT;
+        writeJobLog(Text + '%s' : JOBLOGCRLF);
       EndIf;
 
       Exec Sql
@@ -120,8 +107,8 @@ BegSr ConsumeWs;
       Leave;
     EndIf;
 
-    dsply jsonData.fiscalId;
-    putenv('ACUBE_FISCALID=' + jsonData.fiscalId) ;
+
+    writeJobLog ( jsonData.connectUrl + '%s' : JOBLOGCRLF );
   Enddo;
 
 Endsr;

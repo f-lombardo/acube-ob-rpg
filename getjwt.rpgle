@@ -1,70 +1,70 @@
 **FREE
 ctl-opt DftActGrp(*No) option (*srcstmt : *nodebugio : *nounref);
-//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
 
- // - - - - - - -
- // Workfields
- // - - - - - - -
+// - - - - - - -
+// Workfields
+// - - - - - - -
 
- dcl-s WebServiceUrl    varchar(1024) inz;
- dcl-s WebServiceHeader varchar(1024) inz;
- dcl-s WebServiceBody   varchar(1024) inz;
- dcl-s Text             varchar(2048) inz;
- dcl-s Email            varchar(30)   inz;
- dcl-s Password         varchar(30)   inz;
- // - - - - - - -
+dcl-s WebServiceUrl    varchar(1024) inz;
+dcl-s WebServiceHeader varchar(1024) inz;
+dcl-s WebServiceBody   varchar(1024) inz;
+dcl-s Text             varchar(2048) inz;
+dcl-s Email            varchar(30)   inz;
+dcl-s Password         varchar(30)   inz;
+// - - - - - - -
 
- dcl-ds jsonData   qualified;
-        token      varchar(2048);
- end-ds;
+dcl-ds jsonData   qualified;
+  token      varchar(2048);
+end-ds;
 
-//========================================================================*
+// ========================================================================*
 // External program calls
-//------------------------------------------------------------------------*
+// ------------------------------------------------------------------------*
 dcl-pr getenv pointer extproc('getenv');
-        *n pointer value options(*string:*trim);
+  *n pointer value options(*string:*trim);
 end-pr;
 
 dcl-pr putenv int(10) extproc('putenv');
-    *n pointer value options(*string:*trim) ;
+  *n pointer value options(*string:*trim) ;
 end-pr;
-//========================================================================*
+// ========================================================================*
 
- //--------------------------------------------------------
+// --------------------------------------------------------
 
- Exsr SetUp;
- Exsr ConsumeWs;
+Exsr SetUp;
+Exsr ConsumeWs;
 
- *Inlr = *On;
- Return;
+*Inlr = *On;
+Return;
 
- //--------------------------------------------------------
- // SetUp  subroutine
- //--------------------------------------------------------
+// --------------------------------------------------------
+// SetUp  subroutine
+// --------------------------------------------------------
 
- Begsr SetUp;
-   WebServiceUrl = 'https://common-sandbox.api.acubeapi.com/' +
-                   'login';
+Begsr SetUp;
+  WebServiceUrl = 'https://common-sandbox.api.acubeapi.com/' +
+                  'login';
 
-   WebServiceHeader = '<httpHeader>-
+  WebServiceHeader = '<httpHeader>-
                        <header name="content-type" value="application/json" />-
-                       </httpHeader>';
+                     </httpHeader>';
 
-   Email = %str(getenv('ACUBE_EMAIL'));
-   Password = %str(getenv('ACUBE_PASSWORD'));
+  Email = %str(getenv('ACUBE_EMAIL'));
+  Password = %str(getenv('ACUBE_PASSWORD'));
 
-   WebServiceBody   = '{"email": "' + Email + '", "password": "' + Password + '"}';
+  WebServiceBody   = '{"email": "' + Email + '", "password": "' + Password + '"}';
  
- Endsr;
+Endsr;
 
- //--------------------------------------------------------
- // ConsumeWs  subroutine
- //--------------------------------------------------------
+// --------------------------------------------------------
+// ConsumeWs  subroutine
+// --------------------------------------------------------
 
- Begsr ConsumeWs;
+Begsr ConsumeWs;
 
- Exec sql
+  Exec sql
    Declare CsrC01 Cursor For
 
      Select * from
@@ -73,32 +73,31 @@ end-pr;
        '$'
        Columns(Token VarChar(2048)  Path '$.token')) As x;
 
-   Exec Sql Close CsrC01;
-   Exec Sql Open  CsrC01;
+  Exec Sql Close CsrC01;
+  Exec Sql Open  CsrC01;
 
-   DoU 1 = 0;
-     Exec Sql
+  DoU 1 = 0;
+    Exec Sql
          Fetch Next From CsrC01 into :jsonData;
 
-        If SqlCode < *Zeros or SqlCode = 100;
+    If SqlCode < *Zeros or SqlCode = 100;
 
-           If SqlCode < *Zeros;
-              Exec Sql
+      If SqlCode < *Zeros;
+        Exec Sql
                    Get Diagnostics Condition 1
                    :Text = MESSAGE_TEXT;
-           EndIf;
+      EndIf;
 
-           Exec Sql
+      Exec Sql
                 Close CsrC01;
-           Leave;
-        EndIf;
+      Leave;
+    EndIf;
 
-        // insert the parsed JSON data into a db2 table
+    // insert the parsed JSON data into a db2 table
 
-    putenv('ACUBE_TOKEN=' + jsonData.token) ;
+    putenv('ACUBE_TOKEN=' + jsonData.token);
   Enddo;
 
- Endsr;
+Endsr;
 
-//- - - - - - - - - - - - - - 
-
+// - - - - - - - - - - - - - - 
