@@ -1,7 +1,13 @@
 **FREE
 ctl-opt DftActGrp(*No) option (*srcstmt : *nodebugio : *nounref);
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
+// In order to compile this program run:
+// CRTSQLRPGI OBJ(GETJWT) SRCSTMF('/path/to/your/src/getjwt.rpgle')
+// Before running the program add environment variables with your credentials,
+// for example:
+// ADDENVVAR ENVVAR(ACUBE_EMAIL) VALUE('your@email.test')
+// ADDENVVAR ENVVAR(ACUBE_PASSWORD) VALUE('your_password')
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 
 // - - - - - - -
 // Workfields
@@ -71,7 +77,7 @@ Begsr ConsumeWs;
        Json_Table(Systools.HttpPostClob(:WebServiceUrl, :WebServiceHeader,
                                         :WebServiceBody),
        '$'
-       Columns(Token VarChar(2048)  Path '$.token')) As x;
+       Columns(Token VarChar(2048)  Path '$.token'));
 
   Exec Sql Close CsrC01;
   Exec Sql Open  CsrC01;

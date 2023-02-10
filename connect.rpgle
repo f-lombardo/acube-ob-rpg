@@ -1,6 +1,11 @@
 **FREE
 ctl-opt DftActGrp(*No) option (*srcstmt : *nodebugio : *nounref);
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
+// In order to compile this program run:
+// CRTSQLRPGI OBJ(CONNECT) SRCSTMF('/path/to/your/src/connect.rpgle')
+// Before running the program add environment variable with fiscal id
+// for connection, for example:
+// ADDENVVAR ENVVAR(ACUBE_FISCALID) VALUE('LMBFNC')
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
 
 // - - - - - - -
@@ -84,7 +89,7 @@ Begsr ConsumeWs;
        Json_Table(Systools.HttpPostClob(:WebServiceUrl, :WebServiceHeader,
                                         :WebServiceBody),
        '$'
-       Columns(Token VarChar(2048)  Path '$.connectUrl')) As x;
+       Columns(ConnectUrl VarChar(2048)  Path '$.connectUrl'));
 
   Exec Sql Close CsrC01;
   Exec Sql Open  CsrC01;
