@@ -1,27 +1,31 @@
 **FREE
 ctl-opt DftActGrp(*No) option (*srcstmt : *nodebugio : *nounref);
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
+// ==================================================================================
+// In order to compile this program run:
+// CRTSQLRPGI OBJ(CREATEBR) SRCSTMF('/path/to/your/src/createbr.rpgle')
+// Before running the program add environment variable containing the path of the file
+// with the JSON payload
+// ADDENVVAR ENVVAR(ACUBE_IFS_JSON) VALUE('/path/to/your/src/input.json')
+// ==================================================================================
 
-// - - - - - - -
-// Workfields
-// - - - - - - -
-
+// ==================================================================================
+// Variables
+// ==================================================================================
 dcl-s WebServiceUrl    varchar(2048) inz;
 dcl-s WebServiceHeader varchar(2048) inz;
 dcl-s WebServiceBody   varchar(2048) inz;
 dcl-s Token            varchar(2048) inz;
-dcl-s Text             varchar(2048)  inz;
+dcl-s JsonInputFile    varchar(128)  inz;
+dcl-s Text             varchar(2048) inz;
 
-// - - - - - - -
-
+// A ds that will contain data from JSON response
 dcl-ds jsonData   qualified;
   fiscalId   varchar(35);
 end-ds;
 
-// ========================================================================*
-// External program calls
-// ------------------------------------------------------------------------*
+// ==================================================================================
+// External utilities
+// ==================================================================================
 dcl-pr getenv pointer extproc('getenv');
   *n pointer value options(*string:*trim);
 end-pr;
@@ -30,101 +34,70 @@ dcl-pr putenv int(10) extproc('putenv');
   *n pointer value options(*string:*trim) ;
 end-pr;
 
-dcl-pr writeJobLog int(10) extproc('Qp0zLprintf');
-  *n pointer value options(*string); // logMsg
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-end-pr;
+// ==================================================================================
+//                             Main program
+// ==================================================================================
 
-dcl-c JOBLOGCRLF const(x'0d25');
-// Example:
-//     writeJobLog ( WebServiceHeader + '%s' : joblogCRLF );
-// ========================================================================*
+// ================ SetUp  vars
+WebServiceUrl = 'https://ob-sandbox.api.acubeapi.com/' +
+               'business-registry';
 
-// --------------------------------------------------------
+Token = %str(getenv('ACUBE_TOKEN'));
 
-Exsr SetUp;
-Exsr ConsumeWs;
+WebServiceHeader = '<httpHeader> ' +
+                  '  <header name="authorization" value="bearer ' + Token + '" /> ' +
+                  '  <header name="accept" value="application/json" /> ' +
+                  '  <header name="content-type" value="application/json" /> ' +
+                  '</httpHeader>';
 
-*Inlr = *On;
-Return;
+// ================ Read JSON payload from IFS
+JsonInputFile = %str(getenv('ACUBE_IFS_JSON'));
 
-// --------------------------------------------------------
-// SetUp  subroutine
-// --------------------------------------------------------
+Exec SQL
+Declare File Cursor For
+    SELECT CAST(LINE AS CHAR(2048))
+    From Table(IFS_READ(:JsonInputFile, 2048, 'NONE' )) As IFS;
 
-Begsr SetUp;
-  WebServiceUrl = 'https://ob-sandbox.api.acubeapi.com/' +
-                   'business-registry';
+Exec SQL Open File;
 
-  Token = %str(getenv('ACUBE_TOKEN'));
+Exec SQL Fetch Next From File Into :WebServiceBody;
 
-  WebServiceHeader = '<httpHeader> ' +
-                      '  <header name="authorization" value="bearer ' + Token + '" /> ' +
-                      '  <header name="accept" value="application/json" /> ' +
-                      '  <header name="content-type" value="application/json" /> ' +                                              
-                      '</httpHeader>';
+Exec SQL Close File;
 
-  Exec SQL
-    Declare File Cursor For
-        SELECT CAST(LINE AS CHAR(2048))
-        From Table(IFS_READ('src/br.json', 2048, 'NONE' )) As IFS;
+// ================ Consume Web service
+Exec sql
+Declare Csr01 Cursor For
+ Select * from
+   Json_Table(Systools.HttpPostClob(:WebServiceUrl, :WebServiceHeader,
+                                    :WebServiceBody),
+   '$'
+   Columns(FiscalId VarChar(2048)  Path '$.fiscalId')) As x;
 
-  Exec SQL Close File;
-  Exec SQL Open File;
+Exec Sql Open  Csr01;
 
-  Exec SQL Fetch Next From File Into :WebServiceBody;
+DoU 1 = 0;
+  Exec Sql
+         Fetch Next From Csr01 into :jsonData;
 
-  Exec SQL Close File; 
-Endsr;
+  If SqlCode < *Zeros or SqlCode = 100;
 
-// --------------------------------------------------------
-// ConsumeWs  subroutine
-// --------------------------------------------------------
-
-BegSr ConsumeWs;
-
-  Exec sql
-   Declare CsrC01 Cursor For
-     Select * from
-       Json_Table(Systools.HttpPostClob(:WebServiceUrl, :WebServiceHeader,
-                                        :WebServiceBody),
-       '$'
-       Columns(FiscalId VarChar(2048)  Path '$.fiscalId')) As x;
-
-  Exec Sql Close CsrC01;
-  Exec Sql Open  CsrC01;
-
-  DoU 1 = 0;
-    Exec Sql
-         Fetch Next From CsrC01 into :jsonData;
-
-    If SqlCode < *Zeros or SqlCode = 100;
-
-      If SqlCode < *Zeros;
-        Exec Sql
+    If SqlCode < *Zeros;
+      Exec Sql
                    Get Diagnostics Condition 1
                    :Text = MESSAGE_TEXT;
-      EndIf;
-
-      Exec Sql
-                Close CsrC01;
-      Leave;
+      SND-MSG 'Error: ' + Text %target(*caller : 1);
     EndIf;
 
-    dsply jsonData.fiscalId;
-    putenv('ACUBE_FISCALID=' + jsonData.fiscalId) ;
-  Enddo;
+    Exec Sql
+                Close Csr01;
+    Leave;
+  EndIf;
 
-Endsr;
+  putenv('ACUBE_FISCALID=' + jsonData.fiscalId) ;
+  SND-MSG 'New business registry: ' + jsonData.fiscalId  %target(*caller : 1);
+Enddo;
 
-// - - - - - - - - - - - - - - 
-
+// ================ Exit
+*Inlr = *On;
+Return;
+// ==================================================================================
