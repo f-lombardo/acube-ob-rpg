@@ -1,17 +1,16 @@
 **FREE
 ctl-opt DftActGrp(*No) option (*srcstmt : *nodebugio : *nounref);
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
+// ==================================================================================
 // In order to compile this program run:
 // CRTSQLRPGI OBJ(CONNECT) SRCSTMF('/path/to/your/src/connect.rpgle')
 // Before running the program add environment variable with fiscal id
 // for connection, for example:
 // ADDENVVAR ENVVAR(ACUBE_FISCALID) VALUE('LMBFNC')
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - *
+// ==================================================================================
 
-// - - - - - - -
-// Workfields
-// - - - - - - -
-
+// ==================================================================================
+// Variables
+// ==================================================================================
 dcl-s WebServiceUrl    varchar(2048) inz;
 dcl-s WebServiceHeader varchar(2048) inz;
 dcl-s WebServiceBody   varchar(2048) inz;
@@ -19,104 +18,69 @@ dcl-s Token            varchar(2048) inz;
 dcl-s Text             varchar(2048) inz;
 dcl-s FiscalId         varchar(2048) inz;
 
-// - - - - - - -
-
+// A ds that will contain data from JSON response
 dcl-ds jsonData   qualified;
   connectUrl   varchar(2048);
 end-ds;
 
-// ========================================================================*
-// External program calls
-// ------------------------------------------------------------------------*
+// ==================================================================================
+// External utilities
+// ==================================================================================
 dcl-pr getenv pointer extproc('getenv');
   *n pointer value options(*string:*trim);
 end-pr;
 
-dcl-pr writeJobLog int(10) extproc('Qp0zLprintf');
-  *n pointer value options(*string); // logMsg
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-  *n pointer value options(*string:*nopass);
-end-pr;
+// ==================================================================================
+//                             Main program
+// ==================================================================================
 
-dcl-c JOBLOGCRLF const(x'0d25');
-// Example:
-//     writeJobLog ( WebServiceHeader + '%s' : JOBLOGCRLF );
-// ========================================================================*
+// ================ SetUp  vars
+FiscalId = %str(getenv('ACUBE_FISCALID'));
+WebServiceUrl = 'https://ob-sandbox.api.acubeapi.com/' +
+               'business-registry/' + FiscalId + '/connect';
 
-Exsr SetUp;
-Exsr ConsumeWs;
+Token = %str(getenv('ACUBE_TOKEN'));
 
-*Inlr = *On;
-Return;
+WebServiceHeader = '<httpHeader> ' +
+                  '  <header name="authorization" value="bearer ' + Token + '" /> ' +
+                  '  <header name="accept" value="application/json" /> ' +
+                  '  <header name="content-type" value="application/json" /> ' +                                              
+                  '</httpHeader>';
 
-// --------------------------------------------------------
-// SetUp  subroutine
-// --------------------------------------------------------
+WebServiceBody = '{"locale": "it"}';
 
-Begsr SetUp;
-  FiscalId = %str(getenv('ACUBE_FISCALID'));
-  WebServiceUrl = 'https://ob-sandbox.api.acubeapi.com/' +
-                   'business-registry/' + FiscalId + '/connect';
-
-  Token = %str(getenv('ACUBE_TOKEN'));
-
-  WebServiceHeader = '<httpHeader> ' +
-                      '  <header name="authorization" value="bearer ' + Token + '" /> ' +
-                      '  <header name="accept" value="application/json" /> ' +
-                      '  <header name="content-type" value="application/json" /> ' +                                              
-                      '</httpHeader>';
-
-  WebServiceBody = '{"locale": "it"}';
-Endsr;
-
-// --------------------------------------------------------
-// ConsumeWs  subroutine
-// --------------------------------------------------------
-
-Begsr ConsumeWs;
-
-  Exec sql
-    Declare CsrC01 Cursor For
+// ================ Consume Web service
+Exec sql
+    Declare Csr01 Cursor For
      Select * from
        Json_Table(Systools.HttpPostClob(:WebServiceUrl, :WebServiceHeader,
                                         :WebServiceBody),
        '$'
        Columns(ConnectUrl VarChar(2048)  Path '$.connectUrl'));
+    
+Exec Sql Open  Csr01;
 
-  Exec Sql Close CsrC01;
-  Exec Sql Open  CsrC01;
+DoU 1 = 0;
+  Exec Sql
+         Fetch Next From Csr01 into :jsonData;
 
-  DoU 1 = 0;
-    Exec Sql
-         Fetch Next From CsrC01 into :jsonData;
-
-    If SqlCode < *Zeros or SqlCode = 100;
-
-      If SqlCode < *Zeros;
-        Exec Sql
+  If SqlCode < *Zeros or SqlCode = 100;
+    If SqlCode < *Zeros;
+      Exec Sql
                    Get Diagnostics Condition 1
                    :Text = MESSAGE_TEXT;
-        writeJobLog(Text + '%s' : JOBLOGCRLF);
-      EndIf;
-
-      Exec Sql
-                Close CsrC01;
-      Leave;
+      SND-MSG 'Error: ' + Text %target(*caller : 1);
     EndIf;
 
+    Exec Sql
+                Close Csr01;
+    Leave;
+  EndIf;
 
-    writeJobLog ( jsonData.connectUrl + '%s' : JOBLOGCRLF );
-  Enddo;
+  SND-MSG jsonData.connectUrl %target(*caller : 1);
+Enddo;
 
-Endsr;
-
-// - - - - - - - - - - - - - - 
-
+// ================ Exit
+*Inlr = *On;
+Return;
+// ==================================================================================
