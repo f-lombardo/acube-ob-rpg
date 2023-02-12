@@ -20,6 +20,8 @@ dcl-s Email            varchar(30)   inz;
 dcl-s Password         varchar(30)   inz;
 
 // A ds that will contain data from JSON response
+// that has this format:
+// { "token": "a very long encrypted token" }
 dcl-ds jsonData   qualified;
   token      varchar(2048);
 end-ds;
