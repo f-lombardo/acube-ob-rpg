@@ -24,7 +24,7 @@ A fronte di questa risposta JSON restituita dalla POST di login:
 ```json
 { "token": "a very long encrypted token" }
 ```
-definiamo una ds utile ad estrarne il campo `token`
+definiamo una DS utile a estrarne il campo `token`
 ```rpgle
 dcl-ds jsonData   qualified;
   token      varchar(2048);
@@ -60,4 +60,58 @@ Select * from
 Le espressioni con il `$` rappresentano il percorso nella struttura JSON da cui partire per estrarre i dati: 
 `$` è il punto corrente, `$.nomeCampo` il campo `nomeCampo` contenuto nell'oggetto corrente. [Qui](https://jsonpath.com/) potete fare qualche prova con
 questi che sono detti `JSONPath`.
+3. Leggere il contenuto della tabella così ottenuta e porlo nella DS.
+```rpgle
+Exec Sql
+     Fetch Next From Csr01 into :jsonData
+``` 
+4. Mettere il token in una variabile d'ambiente per renderlo disponibile ai programmi chiamati successivamente.
+```rpgle
+putenv('ACUBE_TOKEN=' + jsonData.token);
+``` 
 
+## Censire il proprietario di un conto (Business Registry)
+Il [programma d'esempio](createbr.rpgle) che censisce un nuovo proprietario di un conto (un Business Registry) ci offre la possibilità di utilizzare un'altra interessante funzione SQL.
+
+L'API REST per la creazione di un Business Registry richiede di effettuare una POST con un payload JSON più grande del precedente. 
+Per gestirlo facilmente possiamo scriverlo nell'IFS in uno stream file simile a [questo](br.json), 
+per poi leggerlo da SQL con la funzione [IFS_READ](https://www.ibm.com/docs/en/i/7.3?topic=is-ifs-read-ifs-read-binary-ifs-read-utf8-table-functions).
+Questa funzione richiede come parametri il percorso del file (nel nostro caso preso da una variabile d'ambiente), la dimensione massima delle righe 
+e il delimitatore di riga. Nell'esempio indichiamo `NONE` come delimitatore perché desideriamo leggere tutto il file come un'unica riga.
+Il contenuto del file così ottenuto è poi inserito in una variabile che sarà il body della nostra POST verso l'API.
+```rpgle
+JsonInputFile = %str(getenv('ACUBE_IFS_JSON'));
+
+Exec SQL
+Declare File Cursor For
+    SELECT CAST(LINE AS CHAR(2048))
+    From Table(IFS_READ(:JsonInputFile, 2048, 'NONE' )) As IFS;
+Exec SQL Open File;
+
+Exec SQL Fetch Next From File Into :WebServiceBody;    
+```
+Un'altra parte interessante è la composizione dell'header che comprende il token JWT posto in una variabile d'ambiente dal programma precedente.
+```rpgle
+Token = %str(getenv('ACUBE_TOKEN'));
+
+WebServiceHeader = '<httpHeader> ' +
+'  <header name="authorization" value="bearer ' + Token + '" /> ' +
+'  <header name="accept" value="application/json" /> ' +
+'  <header name="content-type" value="application/json" /> ' +
+'</httpHeader>';
+```
+## Connettere un conto ed elencarne i movimenti
+Il programma [connect.rpgle](connect.rpgle) produce una URL alla quale collegarsi per segnalare alla banca il consenso alla lettura dei dati dei conti corrente.
+Il suo funzionamento è molto simile a quelli precedenti.
+
+L'ultimo programma di esempio consente in fine la [lettura dei dati dei conti correnti](transacts.rpgle). 
+A titolo esemplificativo ho deciso di stampare tali informazioni, ma ovviamente i dati possono essere utilizzati in qualsiasi modo.
+
+![Print transactions](5250.png)
+
+## Conclusioni
+
+In questo articolo abbiamo visto come sia semplice utilizzare delle API REST da IBM i (permettetemi, l'evoluzione del nostro amato AS400), 
+sfruttando la potenza delle funzioni SQL di IBM DB2 for i.
+
+Un ringraziamento va ai gestori del sito di hosting gratuito [PUB400](https://pub400.com/), tramite il quale ho compilato i programmi d'esempio.
