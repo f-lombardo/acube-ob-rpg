@@ -101,7 +101,7 @@ WebServiceHeader = '<httpHeader> ' +
 '</httpHeader>';
 ```
 ## Connettere un conto ed elencarne i movimenti
-Il programma [connect.rpgle](connect.rpgle) produce una URL alla quale collegarsi per segnalare alla banca il consenso alla lettura dei dati dei conti corrente.
+Il programma [connect.rpgle](connect.rpgle) produce una URL alla quale collegarsi per segnalare alla banca il consenso alla lettura dei dati dei conti correnti.
 Il suo funzionamento è molto simile a quelli precedenti.
 
 L'ultimo programma di esempio consente in fine la [lettura dei dati dei conti correnti](transacts.rpgle). 
