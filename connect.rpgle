@@ -77,7 +77,9 @@ DoU 1 = 0;
     Leave;
   EndIf;
 
-  SND-MSG jsonData.connectUrl %target(*caller : 1);
+  SND-MSG 'Open the following URL to start the authorization process'
+            %target(*caller : 1);
+  SND-MSG jsonData.connectUrl %target(*caller : 2);
 Enddo;
 
 // ================ Exit
