@@ -1,1 +1,6 @@
-{ "fiscalId": "X01",  "email": "franco.lombardo.X01@a-cube.io",  "businessName": "Buonamico Buffalmacco",  "enabled": true }
+{
+    "fiscalId": "RSSMRA",
+    "email": "mario.rossi@mail.test",
+    "businessName": "Mario Rossi",
+    "enabled": true
+}
