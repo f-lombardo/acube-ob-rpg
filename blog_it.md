@@ -1,7 +1,7 @@
 # Come usare API REST su IBM i: l'esempio Open Banking
 La piattaforma IBM i, essendo un server aziendale robusto e versatile, può con facilità collegarsi al mondo delle API REST, 
 arricchendo gli applicativi che ospita di funzionalità prese dal cloud.
-Nell'esempio di oggi vedremo come leggere i dati dei conti correnti bancari, che la normativa europea PDS2 ha reso fruibili 
+Nell'esempio di oggi vedremo come leggere i dati dei conti correnti bancari, che la normativa europea PSD2 ha reso fruibili 
 anche da terze parti, software gestionali inclusi.
 Per fare ciò ci serviremo dei seguenti strumenti:
 * Le funzioni SQL [HttpPostClob](https://www.ibm.com/docs/en/i/7.3?topic=overview-httppostblob-httppostclob-scalar-functions) 
